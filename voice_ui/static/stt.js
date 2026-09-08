@@ -22,8 +22,8 @@ async function fetchEnginesAndModels() {
       engineSelect.appendChild(opt);
     });
 
-    const defaultEngine = "openai_whisper";
-    const defaultModel = "small.en";
+    const defaultEngine = "faster_whisper";
+    const defaultModel = "tiny.en";
 
     if (engines.includes(defaultEngine)) {
       engineSelect.value = defaultEngine;

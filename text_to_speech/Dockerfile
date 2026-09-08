@@ -30,6 +30,9 @@ RUN python3 -m venv $VENV_PATH && \
 RUN $VENV_PATH/bin/pip install --no-cache-dir \
         chatterbox-tts
 
+RUN $VENV_PATH/bin/pip install --no-cache-dir transformers==4.46.3
+RUN $VENV_PATH/bin/pip install --no-cache-dir piper-tts==1.2.0
+
 ENV PATH="$VENV_PATH/bin:$PATH"
 
 EXPOSE 5500

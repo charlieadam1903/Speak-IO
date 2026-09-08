@@ -8,7 +8,7 @@ if [ ! -f whisper.cpp/build/bin/whisper-cli ]; then
     git clone https://github.com/ggerganov/whisper.cpp.git
     cd whisper.cpp
     git checkout v1.7.5
-    cmake -B build -DGGML_CUDA=ON -DWHISPER_SDL2=ON
+    cmake -B build -DGGML_CUDA=OFF -DWHISPER_SDL2=ON
     cmake --build build --config Release -- -j$(nproc)
     cmake --install build
 else
