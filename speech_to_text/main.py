@@ -6,7 +6,7 @@ import logging
 import uvicorn
 import asyncio
 
-from fastapi import FastAPI, WebSocket, UploadFile, File, Query
+from fastapi import FastAPI, WebSocket, UploadFile, File, Query, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import HTTPException
 from fastapi import APIRouter
@@ -115,37 +115,61 @@ async def transcribe_stream(
     timeout = 30  # seconds
 
     try:
+        total_bytes = 0
+        first_chunk = True
 
         with open(webm_path, "wb") as f:
 
             print("🔄 Receiving audio stream...")
 
+        
             while True:
-
                 try:
-                    data = await asyncio.wait_for(websocket.receive_bytes(), timeout=timeout)
+                    message = await asyncio.wait_for(websocket.receive(), timeout=timeout)
 
-                    if data:
-                        f.write(data)
+                    if "bytes" in message:
+                        data = message["bytes"]
+                    elif "text" in message:
+                        text = message["text"]
+                        if text == "END":
+                            break
+                        continue
                     else:
-                        print("Received empty payload or client disconnected.")
+                        break
+                    
+                    if not data:
                         break
 
+                    if first_chunk:
+                        print("First bytes:", data[:16].hex())
+                        first_chunk = False
+
+                    f.write(data)
+                    total_bytes += len(data)
+                    # else:
+                    #     print("Received emptyye payload or client disconnected.")
+                    #     break
+                except WebSocketDisconnect:
+                    print("Client disconnected.")
+                    break
                 except asyncio.TimeoutError:
                     print("Timeout: No audio chunk received in time.")
                     break
                 except Exception as e:
                     print(f"Error during streaming: {e}")
                     break
+        if total_bytes == 0:
+            await websocket.send_text("No audio received.")
+            return
 
         print(f"Finished receiving audio. Size: {os.path.getsize(webm_path)} bytes")
 
-        status, output = ffmpeg.convert_to_wav(webm_path, wav_path)
+        status, output = await asyncio.to_thread(ffmpeg.convert_to_wav, webm_path, wav_path)
         if not status:
             await websocket.send_text(f"FFmpeg conversion error: {output}")
             return
 
-        status, output = stt_models.transcribe(wav_path, engine, model_name)
+        status, output = await asyncio.to_thread(stt_models.transcribe, wav_path, engine, model_name)
         if not status:
             await websocket.send_text(f"Transcription error: {output}")
             return
@@ -157,7 +181,11 @@ async def transcribe_stream(
         await websocket.send_text(f"Internal error: {str(e)}")
 
     finally:
-        await websocket.close()
+        try:
+            await websocket.close()
+        except Exception:
+            pass
+
         for path in [webm_path, wav_path]:
             if os.path.exists(path):
                 os.remove(path)

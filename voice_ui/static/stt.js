@@ -120,36 +120,37 @@ async function start() {
 
     const wsUrl = `ws://localhost:5000/api/stt/transcribe/stream?engine=${encodeURIComponent(selectedEngine)}&model_name=${encodeURIComponent(selectedModel)}`;
     socket = new WebSocket(wsUrl);
+    socket.binaryType = "arraybuffer";
 
     socket.onopen = () => {
       log("✅ WebSocket connection established.");
-      recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+
+      recorder = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
 
       recorder.ondataavailable = (e) => {
-        if (e.data.size > 0 && socket.readyState === WebSocket.OPEN) {
+        if (e.data && e.data.size > 0 && socket.readyState === WebSocket.OPEN) {
           socket.send(e.data);
         }
       };
 
-      recorder.onstop = async () => {
-        log("Waiting for transcription...");
+      recorder.onstop =  () => {
+        log("🧩 Sending end-of-stream marker...");
 
         // sending empty chunk to backend
-        const blob = new Blob([], { type: 'audio/webm' });
-        const buffer = await blob.arrayBuffer();
+        // const blob = new Blob([], { type: 'audio/webm' });
+        // const buffer = await blob.arrayBuffer();
 
         if (socket.readyState === WebSocket.OPEN) {
-          socket.send(buffer);
+          socket.send("END");
+        }
+      };
 
           socket.onmessage = (e) => {
             logBanner("📄 Transcription received:");
             log(e.data);
             socket.close();
           };
-        } else {
-          log("❌ WebSocket not open");
-        }
-      };
+       
 
       recorder.start(250); // send chunks every 250ms
       log("🎙️ Recording started...");
